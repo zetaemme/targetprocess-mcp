@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ else:
 
 KEYCHAIN_SERVICE = "targetprocess-mcp"
 CONFIG_DIR = Path.home() / ".config" / "targetprocess-mcp"
+
+_vpn_check_cache: tuple[bool, float] | None = None
+_VPN_CHECK_TTL = 30.0
 
 
 def get_token() -> str | None:
@@ -68,11 +72,19 @@ else:
 
 def check_vpn() -> bool:
     """Check if VPN is connected (if required by configuration)."""
+    global _vpn_check_cache
+
     if not VPN_REQUIRED:
         return True
 
     if not VPN_CHECK_HOSTS:
         return True
+
+    now = time.monotonic()
+    if _vpn_check_cache is not None:
+        result, cached_time = _vpn_check_cache
+        if now - cached_time < _VPN_CHECK_TTL:
+            return result
 
     import socket
 
@@ -82,12 +94,15 @@ def check_vpn() -> bool:
             sock.settimeout(3)
             sock.connect((host, 443))
             sock.close()
+            _vpn_check_cache = (True, now)
             return True
         except Exception:
             try:
                 socket.gethostbyname(host)
+                _vpn_check_cache = (True, now)
                 return True
             except Exception:
                 continue
 
+    _vpn_check_cache = (False, now)
     return False
