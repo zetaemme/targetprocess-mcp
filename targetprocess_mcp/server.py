@@ -1,6 +1,7 @@
 """FastMCP server for TargetProcess integration."""
 
 import subprocess
+import sys
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -8,6 +9,11 @@ from fastmcp.server.middleware.caching import ResponseCachingMiddleware
 
 from . import config as config_module
 from .client import get_client
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 mcp = FastMCP("TargetProcess")
 mcp.add_middleware(ResponseCachingMiddleware())
@@ -46,13 +52,6 @@ def save_config(
     url: str, vpn_required: bool = False, vpn_check_hosts: list[str] | None = None
 ) -> None:
     """Save configuration to TOML file."""
-    import sys
-
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     config_data = {"URL": url.rstrip("/")}
     if vpn_required:
