@@ -4,11 +4,13 @@ import subprocess
 from pathlib import Path
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware.caching import ResponseCachingMiddleware
 
 from . import config as config_module
 from .client import get_client
 
 mcp = FastMCP("TargetProcess")
+mcp.add_middleware(ResponseCachingMiddleware())
 
 KEYCHAIN_SERVICE = "targetprocess-mcp"
 CONFIG_DIR = Path.home() / ".config" / "targetprocess-mcp"

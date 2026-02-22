@@ -1,7 +1,5 @@
 """TargetProcess API client."""
 
-import hashlib
-import time
 from typing import Any, Literal
 
 import httpx
@@ -9,15 +7,6 @@ import httpx
 from .config import check_vpn
 
 _client: httpx.AsyncClient | None = None
-
-_response_cache: dict[str, tuple[Any, float]] = {}
-_CACHE_TTL = 30.0
-
-
-def _cache_key(endpoint: str, params: dict[str, Any] | None) -> str:
-    """Generate cache key from endpoint and params."""
-    param_str = str(sorted(params.items())) if params else ""
-    return hashlib.sha256(f"{endpoint}:{param_str}".encode()).hexdigest()
 
 
 def get_http_client() -> httpx.AsyncClient:
@@ -37,17 +26,10 @@ def get_http_client() -> httpx.AsyncClient:
 
 async def close_http_client() -> None:
     """Close the HTTP client (call on shutdown)."""
-    global _client, _response_cache
+    global _client
     if _client is not None:
         await _client.aclose()
         _client = None
-    _response_cache.clear()
-
-
-def clear_cache() -> None:
-    """Clear the response cache."""
-    global _response_cache
-    _response_cache.clear()
 
 
 class TargetProcessClient:
@@ -69,7 +51,6 @@ class TargetProcessClient:
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
         endpoint: str,
-        use_cache: bool = True,
         **kwargs: Any,
     ) -> Any:
         """Make HTTP request to TargetProcess API."""
@@ -79,14 +60,6 @@ class TargetProcessClient:
         url = f"{self.base_url}/{endpoint}?token={self.token}"
         params = self._build_params(**kwargs.get("params", {}))
 
-        if method == "GET" and use_cache:
-            cache_key = _cache_key(endpoint, params)
-            now = time.monotonic()
-            if cache_key in _response_cache:
-                data, cached_time = _response_cache[cache_key]
-                if now - cached_time < _CACHE_TTL:
-                    return data
-
         client = get_http_client()
         response = await client.request(
             method,
@@ -94,12 +67,7 @@ class TargetProcessClient:
             params=params if params else None,
         )
         response.raise_for_status()
-        data = response.json()
-
-        if method == "GET" and use_cache:
-            _response_cache[_cache_key(endpoint, params)] = (data, time.monotonic())
-
-        return data
+        return response.json()
 
     async def get(
         self,
