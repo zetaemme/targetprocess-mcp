@@ -1,7 +1,8 @@
 """TargetProcess API client."""
 
-import httpx
 from typing import Any, Literal
+
+import httpx
 
 from .config import API_BASE, TARGETPROCESS_TOKEN, check_vpn
 
@@ -182,4 +183,14 @@ class TargetProcessClient:
 
 async def get_client() -> TargetProcessClient:
     """Factory function to create a new client instance."""
-    return TargetProcessClient()
+    from . import config as config_module
+
+    if not config_module.TARGETPROCESS_URL or not config_module.TARGETPROCESS_TOKEN:
+        raise RuntimeError(
+            "TargetProcess not configured. Run: configure(url='https://yourcompany.tpondemand.com', token='your-api-token')"
+        )
+
+    return TargetProcessClient(
+        base_url=config_module.API_BASE,
+        token=config_module.TARGETPROCESS_TOKEN,
+    )
