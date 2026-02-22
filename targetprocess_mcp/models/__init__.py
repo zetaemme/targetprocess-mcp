@@ -1,10 +1,10 @@
-from .project import Project
-from .user_story import UserStory
 from .bug import Bug
-from .task import Task
 from .feature import Feature
+from .project import Project
 from .release import Release
+from .task import Task
 from .user import User
+from .user_story import UserStory
 
 __all__ = [
     "Project",
