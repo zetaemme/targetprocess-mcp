@@ -4,13 +4,38 @@ from typing import Any, Literal
 
 import httpx
 
-from .config import API_BASE, TARGETPROCESS_TOKEN, check_vpn
+from .config import check_vpn
+
+_client: httpx.AsyncClient | None = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """Get or create the shared HTTP client singleton."""
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(
+                max_keepalive_connections=10,
+                max_connections=20,
+                keepalive_expiry=30.0,
+            ),
+        )
+    return _client
+
+
+async def close_http_client() -> None:
+    """Close the HTTP client (call on shutdown)."""
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
 
 
 class TargetProcessClient:
     """Async client for TargetProcess REST API."""
 
-    def __init__(self, base_url: str = API_BASE, token: str = TARGETPROCESS_TOKEN):
+    def __init__(self, base_url: str, token: str):
         self.base_url = base_url.rstrip("/")
         self.token = token
 
@@ -35,15 +60,14 @@ class TargetProcessClient:
         url = f"{self.base_url}/{endpoint}?token={self.token}"
         params = self._build_params(**kwargs.get("params", {}))
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(
-                method,
-                url,
-                params=params if params else None,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.request(
+            method,
+            url,
+            params=params if params else None,
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def get(
         self,
