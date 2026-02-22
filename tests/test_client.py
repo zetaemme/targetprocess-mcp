@@ -1,29 +1,9 @@
+"""Tests for TargetProcessClient."""
+
 import pytest
-import httpx
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from targetprocess_mcp.server import mcp
-from targetprocess_mcp.client import TargetProcessClient
-
-
-@pytest.fixture
-def mock_config():
-    """Mock configuration."""
-    mock_cfg = MagicMock()
-    mock_cfg.targetprocess_url = "https://test.tpondemand.com"
-    mock_cfg.targetprocess_token = "test-token"
-    mock_cfg.api_base = "https://test.tpondemand.com/api/v1"
-    mock_cfg.vpn_required = False
-
-    with patch("targetprocess_mcp.config.config", mock_cfg):
-        with patch("targetprocess_mcp.config.check_vpn", return_value=True):
-            yield
-
-
-@pytest.fixture
-def client(mock_config):
-    """Create test client."""
-    return TargetProcessClient(base_url="https://test.tpondemand.com/api/v1", token="test-token")
+from targetprocess_mcp.client import TargetProcessClient, get_client
 
 
 class TestTargetProcessClient:
@@ -93,73 +73,26 @@ class TestTargetProcessClient:
 
             assert len(result) == 1
 
-    @pytest.mark.asyncio
-    async def test_build_where_single_condition(self, client):
+
+class TestBuildWhere:
+    """Tests for _build_where helper."""
+
+    def test_single_condition(self, client):
         """Test WHERE clause building with single condition."""
         where = client._build_where("(Project.Id eq 5)")
         assert where == "(Project.Id eq 5)"
 
-    @pytest.mark.asyncio
-    async def test_build_where_multiple_conditions(self, client):
+    def test_multiple_conditions(self, client):
         """Test WHERE clause building with multiple conditions."""
         where = client._build_where("(Project.Id eq 5)", "(State eq 'Open')")
         assert "and" in where
         assert "Project.Id eq 5" in where
         assert "State eq 'Open'" in where
 
-    @pytest.mark.asyncio
-    async def test_build_where_empty(self, client):
+    def test_empty_conditions(self, client):
         """Test WHERE clause with no conditions."""
         where = client._build_where()
         assert where is None
-
-
-class TestMCPServer:
-    """Tests for MCP server tools using FastMCP Client."""
-
-    @pytest.mark.asyncio
-    async def test_mcp_server_starts(self):
-        """Test that MCP server can be created."""
-        assert mcp is not None
-        assert mcp.name == "TargetProcess"
-
-
-class TestVPNCheck:
-    """Tests for VPN check functionality."""
-
-    def test_check_vpn_not_required(self):
-        """Test VPN check when not required."""
-        mock_cfg = MagicMock()
-        mock_cfg.vpn_required = False
-
-        with patch("targetprocess_mcp.config.config", mock_cfg):
-            from targetprocess_mcp.config import check_vpn
-
-            assert check_vpn() is True
-
-    def test_check_vpn_no_hosts(self):
-        """Test VPN check with no hosts configured."""
-        mock_cfg = MagicMock()
-        mock_cfg.vpn_required = True
-        mock_cfg.vpn_check_hosts = []
-
-        with patch("targetprocess_mcp.config.config", mock_cfg):
-            from targetprocess_mcp.config import check_vpn
-
-            assert check_vpn() is True
-
-
-class TestConfig:
-    """Tests for configuration."""
-
-    def test_load_config_missing(self):
-        """Test config loading when file doesn't exist."""
-        with patch("targetprocess_mcp.config.CONFIG_DIR") as mock_dir:
-            mock_dir.exists.return_value = False
-            from targetprocess_mcp.config import load_config
-
-            result = load_config()
-            assert result == {}
 
 
 class TestConditionsFromFilters:
@@ -265,8 +198,6 @@ class TestGetClient:
         mock_cfg.targetprocess_token = ""
 
         with patch("targetprocess_mcp.config.config", mock_cfg):
-            from targetprocess_mcp.client import get_client
-
             with pytest.raises(RuntimeError, match="not configured"):
                 await get_client()
 
@@ -279,8 +210,6 @@ class TestGetClient:
         mock_cfg.api_base = "https://test.com/api/v1"
 
         with patch("targetprocess_mcp.config.config", mock_cfg):
-            from targetprocess_mcp.client import get_client
-
             client = await get_client()
             assert client.base_url == "https://test.com/api/v1"
             assert client.token == "token"
