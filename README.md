@@ -22,12 +22,12 @@ Model Context Protocol (MCP) server for integrating TargetProcess with Claude Co
 ### 1. Install
 
 ```bash
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Clone and install
 cd targetprocess-mcp
-pip install -e .
-
-# Or install dependencies directly
-pip install fastmcp httpx
+uv sync
 ```
 
 ### 2. Add to Claude Code
@@ -354,20 +354,17 @@ targetprocess_mcp/
 ### Running Tests
 
 ```bash
-pip install -e ".[dev]"
-
-# Run with environment variables
-TARGETPROCESS_URL="https://test.tpondemand.com" TARGETPROCESS_TOKEN="test-token" pytest tests/
+uv run pytest tests/
 ```
 
 ### Code Quality
 
 ```bash
 # Run ruff linter
-ruff check targetprocess_mcp/
+uv run ruff check targetprocess_mcp/
 
 # Run mypy type checker
-mypy targetprocess_mcp/
+uv run mypy targetprocess_mcp/
 ```
 
 ### Pre-commit Hook
