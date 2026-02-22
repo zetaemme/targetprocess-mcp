@@ -9,10 +9,15 @@ from targetprocess_mcp.client import TargetProcessClient
 @pytest.fixture
 def mock_config():
     """Mock configuration."""
-    with patch("targetprocess_mcp.config.TARGETPROCESS_URL", "https://test.tpondemand.com"):
-        with patch("targetprocess_mcp.config.TARGETPROCESS_TOKEN", "test-token"):
-            with patch("targetprocess_mcp.config.check_vpn", return_value=True):
-                yield
+    mock_cfg = MagicMock()
+    mock_cfg.targetprocess_url = "https://test.tpondemand.com"
+    mock_cfg.targetprocess_token = "test-token"
+    mock_cfg.api_base = "https://test.tpondemand.com/api/v1"
+    mock_cfg.vpn_required = False
+
+    with patch("targetprocess_mcp.config.config", mock_cfg):
+        with patch("targetprocess_mcp.config.check_vpn", return_value=True):
+            yield
 
 
 @pytest.fixture
@@ -124,18 +129,24 @@ class TestVPNCheck:
 
     def test_check_vpn_not_required(self):
         """Test VPN check when not required."""
-        with patch("targetprocess_mcp.config.VPN_REQUIRED", False):
+        mock_cfg = MagicMock()
+        mock_cfg.vpn_required = False
+
+        with patch("targetprocess_mcp.config.config", mock_cfg):
             from targetprocess_mcp.config import check_vpn
 
             assert check_vpn() is True
 
     def test_check_vpn_no_hosts(self):
         """Test VPN check with no hosts configured."""
-        with patch("targetprocess_mcp.config.VPN_REQUIRED", True):
-            with patch("targetprocess_mcp.config.VPN_CHECK_HOSTS", []):
-                from targetprocess_mcp.config import check_vpn
+        mock_cfg = MagicMock()
+        mock_cfg.vpn_required = True
+        mock_cfg.vpn_check_hosts = []
 
-                assert check_vpn() is True
+        with patch("targetprocess_mcp.config.config", mock_cfg):
+            from targetprocess_mcp.config import check_vpn
+
+            assert check_vpn() is True
 
 
 class TestConfig:

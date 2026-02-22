@@ -1,6 +1,7 @@
 """Configuration management for TargetProcess MCP."""
 
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -131,8 +132,6 @@ def check_vpn() -> bool:
         if now - cached_time < _VPN_CHECK_TTL:
             return result
 
-    import socket
-
     for host in config.vpn_check_hosts:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -151,10 +150,3 @@ def check_vpn() -> bool:
 
     _vpn_check_cache = (False, now)
     return False
-
-
-TARGETPROCESS_URL = ""
-TARGETPROCESS_TOKEN = ""
-VPN_REQUIRED = False
-VPN_CHECK_HOSTS: list[str] = []
-API_BASE = ""
