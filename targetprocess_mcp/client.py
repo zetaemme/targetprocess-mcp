@@ -1,35 +1,31 @@
 """TargetProcess API client."""
 
+import functools
 from typing import Any, Literal
 
 import httpx
 
 from .config import check_vpn
 
-_client: httpx.AsyncClient | None = None
 
-
+@functools.cache
 def get_http_client() -> httpx.AsyncClient:
     """Get or create the shared HTTP client singleton."""
-    global _client
-    if _client is None:
-        _client = httpx.AsyncClient(
-            timeout=30.0,
-            limits=httpx.Limits(
-                max_keepalive_connections=10,
-                max_connections=20,
-                keepalive_expiry=30.0,
-            ),
-        )
-    return _client
+    return httpx.AsyncClient(
+        timeout=30.0,
+        limits=httpx.Limits(
+            max_keepalive_connections=10,
+            max_connections=20,
+            keepalive_expiry=30.0,
+        ),
+    )
 
 
 async def close_http_client() -> None:
     """Close the HTTP client (call on shutdown)."""
-    global _client
-    if _client is not None:
-        await _client.aclose()
-        _client = None
+    client = get_http_client()
+    await client.aclose()
+    get_http_client.cache_clear()
 
 
 class TargetProcessClient:
