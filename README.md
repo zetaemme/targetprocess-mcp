@@ -8,7 +8,7 @@ Model Context Protocol (MCP) server for integrating TargetProcess with Claude Co
 - **VPN protection** - Optional requirement for VPN connection
 - **Async API client** - Built on httpx for efficient HTTP requests
 - **Type-safe models** - Dataclass models for TargetProcess entities
-- **Easy setup** - Interactive configuration wizard
+- **Self-configuring** - Configure directly from Claude Code
 
 ## Requirements
 
@@ -22,29 +22,15 @@ Model Context Protocol (MCP) server for integrating TargetProcess with Claude Co
 ### 1. Install
 
 ```bash
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Clone and install
 cd targetprocess-mcp
-pip install -e .
-
-# Or install dependencies directly
-pip install fastmcp httpx
+uv sync
 ```
 
-### 2. Configure
-
-Run the interactive setup:
-
-```bash
-python -m targetprocess_mcp.setup
-```
-
-This will:
-1. Prompt for your TargetProcess URL (e.g., `https://yourcompany.tpondemand.com`)
-2. Prompt for your API token (from TargetProcess → Settings → API)
-3. Store the token securely in macOS Keychain
-4. Optionally configure VPN protection
-
-### 3. Add to Claude Code
+### 2. Add to Claude Code
 
 ```bash
 # Using CLI (recommended)
@@ -64,10 +50,24 @@ Or manually add to `~/.claude.json`:
 }
 ```
 
+### 3. Configure
+
+The first time you use a tool, you'll be prompted to configure. Or run the `configure` tool directly:
+
+```
+configure(url="https://yourcompany.tpondemand.com", token="your-api-token")
+```
+
+This stores:
+- **URL**: `~/.config/targetprocess-mcp/config.toml`
+- **Token**: macOS Keychain (encrypted)
+
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
+| `configure` | Configure URL, token, and VPN settings |
+| `get_status` | Check if MCP is configured and connected |
 | `get_projects` | List all projects (id + name for reference) |
 | `search` | Search user stories, bugs, or features by name |
 | `get_user_stories` | Query user stories with filters |
@@ -76,6 +76,28 @@ Or manually add to `~/.claude.json`:
 | `get_sprints` | Query sprints/releases |
 
 ## Tool Details
+
+### configure
+
+Configure TargetProcess MCP with your credentials. Run this first to set up access.
+
+```
+configure(
+    url: str,                    # TargetProcess URL
+    token: str,                  # API token
+    vpn_required: bool = false,  # Require VPN connection
+    vpn_check_hosts: str = None  # Comma-separated hosts to check
+)
+```
+
+Example:
+```
+configure(url="https://mycompany.tpondemand.com", token="abc123")
+```
+
+### get_status
+
+Check if TargetProcess MCP is configured and connected.
 
 ### get_projects
 
@@ -176,25 +198,81 @@ Get all features for project 3
 Show me the sprints for project "MyApp"
 ```
 
+## Natural Language Prompts
+
+Here are examples of how to interact with TargetProcess using natural language:
+
+### Getting Started
+```
+Configure TargetProcess with my account (url)
+Show me my TargetProcess status
+```
+
+### Projects & Search
+```
+What projects do I have access to?
+Find projects named "Mobile"
+Search for user stories about login
+Find bugs tagged as critical
+```
+
+### User Stories
+```
+Show my open user stories
+Get all user stories for project 5
+List user stories assigned to me that are in progress
+Show me user stories for feature 123
+```
+
+### Bugs
+```
+Show me all open bugs
+What critical bugs exist in project 3?
+List bugs assigned to me
+Show bugs in QA state for review
+```
+
+### Features
+```
+What features are in progress?
+Show completed features for project "Website Redesign"
+```
+
+### Sprints/Releases
+```
+What sprints are coming up?
+Show me the current sprint for project 5
+List all releases for project "Mobile App"
+```
+
 ## Security
 
 ### Credential Storage
 
 - **API Token**: Stored in macOS Keychain (encrypted by OS)
-- **URL**: Stored in `~/.config/targetprocess-mcp/config.py`
+- **URL & Settings**: Stored in `~/.config/targetprocess-mcp/config.toml`
 
 ### VPN Protection (Optional)
 
-Configure VPN protection during setup to ensure the MCP only works when connected to your internal network:
+Configure VPN protection when running `configure`:
 
 ```
-Require VPN connection? [y/N]: y
-Host (internal only): internal-api.company.com
+vpn_required: true
+vpn_check_hosts: internal-api.company.com
 ```
 
 When enabled, the MCP will check connectivity to the specified host(s) before making any API calls.
 
 ## Configuration
+
+### Re-configure
+
+Run the `configure` tool anytime to update your settings:
+
+```
+configure(url="https://yourcompany.tpondemand.com", token="new-token")
+configure(url="https://yourcompany.tpondemand.com", token="token", vpn_required=true, vpn_check_hosts="host1,host2")
+```
 
 ### Environment Variables
 
@@ -209,30 +287,29 @@ When enabled, the MCP will check connectivity to the specified host(s) before ma
 The configuration file is stored at:
 
 ```
-~/.config/targetprocess-mcp/config.py
+~/.config/targetprocess-mcp/config.toml
 ```
 
 Example:
-```python
+```toml
 URL = "https://yourcompany.tpondemand.com"
 
-# VPN Configuration
-VPN_REQUIRED = True
-VPN_CHECK_HOSTS = ['internal-api.company.com']
+VPN_REQUIRED = true
+VPN_CHECK_HOSTS = ["internal-api.company.com"]
 ```
 
 ## Troubleshooting
 
+### "TargetProcess not configured" error
+
+Run the configure tool:
+```
+configure(url="https://yourcompany.tpondemand.com", token="your-api-token")
+```
+
 ### "VPN connection required" error
 
 Ensure you're connected to your VPN. If you configured VPN protection, the MCP will not work outside your network.
-
-### "Token not found" error
-
-Run the setup again:
-```bash
-python -m targetprocess_mcp.setup
-```
 
 ### Claude Code not recognizing the MCP
 
@@ -265,7 +342,6 @@ targetprocess_mcp/
 ├── config.py            # Configuration & Keychain
 ├── client.py            # TargetProcess API client
 ├── server.py            # FastMCP server & tools
-├── setup.py             # Interactive setup wizard
 ├── models/              # Dataclass models
 │   ├── __init__.py
 │   ├── project.py
@@ -278,20 +354,17 @@ targetprocess_mcp/
 ### Running Tests
 
 ```bash
-pip install -e ".[dev]"
-
-# Run with environment variables
-TARGETPROCESS_URL="https://test.tpondemand.com" TARGETPROCESS_TOKEN="test-token" pytest tests/
+uv run pytest tests/
 ```
 
 ### Code Quality
 
 ```bash
 # Run ruff linter
-ruff check targetprocess_mcp/
+uv run ruff check targetprocess_mcp/
 
 # Run mypy type checker
-mypy targetprocess_mcp/
+uv run mypy targetprocess_mcp/
 ```
 
 ### Pre-commit Hook

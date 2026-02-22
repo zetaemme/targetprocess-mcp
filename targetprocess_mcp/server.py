@@ -1,10 +1,118 @@
 """FastMCP server for TargetProcess integration."""
 
-from fastmcp import FastMCP
+import subprocess
+import sys
+from pathlib import Path
 
+from fastmcp import FastMCP
+from fastmcp.server.middleware.caching import ResponseCachingMiddleware
+
+from . import config as config_module
 from .client import get_client
 
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 mcp = FastMCP("TargetProcess")
+mcp.add_middleware(ResponseCachingMiddleware())
+
+KEYCHAIN_SERVICE = "targetprocess-mcp"
+CONFIG_DIR = Path.home() / ".config" / "targetprocess-mcp"
+
+
+def store_in_keychain(account: str, password: str) -> bool:
+    """Store password in macOS Keychain."""
+    try:
+        subprocess.run(
+            ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account],
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "security",
+                "add-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE,
+                "-a",
+                account,
+                "-w",
+                password,
+            ],
+            capture_output=True,
+            check=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def save_config(
+    url: str, vpn_required: bool = False, vpn_check_hosts: list[str] | None = None
+) -> None:
+    """Save configuration to TOML file."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config_data = {"URL": url.rstrip("/")}
+    if vpn_required:
+        config_data["VPN_REQUIRED"] = True
+        if vpn_check_hosts:
+            config_data["VPN_CHECK_HOSTS"] = vpn_check_hosts
+
+    config_file = CONFIG_DIR / "config.toml"
+    with open(config_file, "wb") as f:
+        tomllib.dump(config_data, f)
+
+
+@mcp.tool()
+async def configure(
+    url: str,
+    token: str,
+    vpn_required: bool = False,
+    vpn_check_hosts: str | None = None,
+) -> str:
+    """Configure TargetProcess MCP with your credentials.
+
+    Run this first to set up your TargetProcess URL and API token.
+
+    Args:
+        url: TargetProcess URL (e.g., https://yourcompany.tpondemand.com)
+        token: API token from TargetProcess Settings > API
+        vpn_required: Whether VPN is required to access TargetProcess
+        vpn_check_hosts: Comma-separated list of hosts to check VPN connectivity
+
+    Returns:
+        Success or error message
+    """
+    if not url:
+        return "Error: URL is required"
+    if not token:
+        return "Error: Token is required"
+
+    save_config(url, vpn_required, vpn_check_hosts.split(",") if vpn_check_hosts else None)
+
+    if store_in_keychain("api-token", token):
+        return "Configuration saved successfully!\n\nTo add to Claude Code, run:\n  /mcp add targetprocess -- python -m targetprocess_mcp.server"
+    else:
+        return "Configuration saved but failed to store token in keychain"
+
+
+@mcp.tool()
+async def get_status() -> dict:
+    """Check if TargetProcess MCP is configured and connected."""
+    try:
+        if not config_module.config.targetprocess_url:
+            return {"configured": False, "message": "Not configured. Run configure tool first."}
+        if not config_module.config.targetprocess_token:
+            return {"configured": False, "message": "Token not found. Run configure tool first."}
+
+        return {
+            "configured": True,
+            "url": config_module.config.targetprocess_url,
+            "vpn_required": config_module.config.vpn_required,
+        }
+    except Exception as e:
+        return {"configured": False, "message": str(e)}
 
 
 @mcp.tool()

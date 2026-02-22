@@ -1,15 +1,37 @@
 """TargetProcess API client."""
 
-import httpx
+import functools
 from typing import Any, Literal
 
-from .config import API_BASE, TARGETPROCESS_TOKEN, check_vpn
+import httpx
+
+from .config import check_vpn
+
+
+@functools.cache
+def get_http_client() -> httpx.AsyncClient:
+    """Get or create the shared HTTP client singleton."""
+    return httpx.AsyncClient(
+        timeout=30.0,
+        limits=httpx.Limits(
+            max_keepalive_connections=10,
+            max_connections=20,
+            keepalive_expiry=30.0,
+        ),
+    )
+
+
+async def close_http_client() -> None:
+    """Close the HTTP client (call on shutdown)."""
+    client = get_http_client()
+    await client.aclose()
+    get_http_client.cache_clear()
 
 
 class TargetProcessClient:
     """Async client for TargetProcess REST API."""
 
-    def __init__(self, base_url: str = API_BASE, token: str = TARGETPROCESS_TOKEN):
+    def __init__(self, base_url: str, token: str):
         self.base_url = base_url.rstrip("/")
         self.token = token
 
@@ -20,6 +42,24 @@ class TargetProcessClient:
     def _build_where(self, *conditions: str) -> str | None:
         """Build OData WHERE clause from conditions."""
         return " and ".join(conditions) or None
+
+    def _conditions_from_filters(self, **filters: Any) -> list[str]:
+        """Build OData conditions from filter kwargs.
+
+        Maps filter names to OData condition templates.
+        """
+        mappings = {
+            "project_id": "Project.Id eq {value}",
+            "feature_id": "Feature.Id eq {value}",
+            "assignee_id": "Assignable.Assignee.Id eq {value}",
+            "state": "EntityState.Name eq '{value}'",
+            "severity": "Severity.Name eq '{value}'",
+        }
+        conditions = []
+        for key, value in filters.items():
+            if value is not None and key in mappings:
+                conditions.append(mappings[key].format(value=value))
+        return conditions
 
     async def _request(
         self,
@@ -34,15 +74,14 @@ class TargetProcessClient:
         url = f"{self.base_url}/{endpoint}?token={self.token}"
         params = self._build_params(**kwargs.get("params", {}))
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(
-                method,
-                url,
-                params=params if params else None,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.request(
+            method,
+            url,
+            params=params if params else None,
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def get(
         self,
@@ -102,16 +141,12 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get user stories."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if feature_id:
-            conditions.append(f"(Feature.Id eq {feature_id})")
-        if assignee_id:
-            conditions.append(f"(Assignable.Assignee.Id eq {assignee_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            feature_id=feature_id,
+            assignee_id=assignee_id,
+            state=state,
+        )
         return await self.get(
             "UserStories",
             include="Project,EntityState,Assignee,Feature",
@@ -128,16 +163,12 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get bugs."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if assignee_id:
-            conditions.append(f"(Assignee.Id eq {assignee_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-        if severity:
-            conditions.append(f"(Severity.Name eq '{severity}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            assignee_id=assignee_id,
+            state=state,
+            severity=severity,
+        )
         return await self.get(
             "Bugs",
             include="Project,EntityState,Assignee,Priority,Severity",
@@ -152,12 +183,10 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get features."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            state=state,
+        )
         return await self.get(
             "Features",
             include="Project,EntityState",
@@ -182,4 +211,14 @@ class TargetProcessClient:
 
 async def get_client() -> TargetProcessClient:
     """Factory function to create a new client instance."""
-    return TargetProcessClient()
+    from . import config as config_module
+
+    if not config_module.config.targetprocess_url or not config_module.config.targetprocess_token:
+        raise RuntimeError(
+            "TargetProcess not configured. Run: configure(url='https://yourcompany.tpondemand.com', token='your-api-token')"
+        )
+
+    return TargetProcessClient(
+        base_url=config_module.config.api_base,
+        token=config_module.config.targetprocess_token,
+    )

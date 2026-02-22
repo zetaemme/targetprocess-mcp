@@ -1,7 +1,3 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "targetprocess-mcp"
 version = "0.1.0"
@@ -27,9 +23,10 @@ classifiers = [
 dependencies = [
     "fastmcp>=2.0.0",
     "httpx>=0.27.0",
+    "tomli>=2.0.0;python_version<'3.11'",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -37,10 +34,6 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.10.0",
 ]
-
-[project.scripts]
-targetprocess-mcp = "targetprocess_mcp.server:run"
-targetprocess-mcp-setup = "targetprocess_mcp.setup:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

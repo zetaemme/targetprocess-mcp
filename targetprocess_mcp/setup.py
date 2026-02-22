@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Setup script for TargetProcess MCP - configures credentials and stores in keychain."""
 
+import json
 import os
-import sys
 import subprocess
 
 KEYCHAIN_SERVICE = "targetprocess-mcp"
@@ -74,18 +74,14 @@ def prompt_for_credentials() -> tuple[str, str]:
     print("TargetProcess MCP Setup")
     print("=" * 50)
 
-    url = input(
-        "TargetProcess URL (e.g., https://yourcompany.tpondemand.com): "
-    ).strip()
+    url = input("TargetProcess URL (e.g., https://yourcompany.tpondemand.com): ").strip()
     while not url:
         print("URL is required")
         url = input("TargetProcess URL: ").strip()
 
     token = get_from_keychain("api-token")
     if token:
-        use_existing = (
-            input("Found existing token in keychain. Use it? [Y/n]: ").strip().lower()
-        )
+        use_existing = input("Found existing token in keychain. Use it? [Y/n]: ").strip().lower()
         if use_existing != "n":
             return url, token
 
@@ -132,23 +128,20 @@ def main():
 
     vpn_required, check_hosts = prompt_for_vpn()
 
-    config_path = os.path.join(CONFIG_DIR, "config.py")
+    config_path = os.path.join(CONFIG_DIR, "config.toml")
     with open(config_path, "w") as f:
         f.write(f'URL = "{url.rstrip("/")}"\n')
         if vpn_required:
-            f.write(f"\n# VPN Configuration\n")
-            f.write(f"VPN_REQUIRED = True\n")
-            f.write(f"VPN_CHECK_HOSTS = {check_hosts!r}\n")
+            f.write("\nVPN_REQUIRED = true\n")
+            f.write(f"VPN_CHECK_HOSTS = {json.dumps(check_hosts)}\n")
 
     print(f"\nConfiguration saved to {config_path}")
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     print("\n" + "=" * 50)
     print("Setup Complete!")
-    print("=" * 50)
     print("\nTo add to Claude Code, run:")
     print(
-        f"  claude mcp add targetprocess --transport stdio --scope user -- python -m targetprocess_mcp.server"
+        "  claude mcp add targetprocess --transport stdio --scope user -- python -m targetprocess_mcp.server"
     )
     print("\nOr add manually to ~/.claude.json:")
     print(
