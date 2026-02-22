@@ -43,6 +43,24 @@ class TargetProcessClient:
         """Build OData WHERE clause from conditions."""
         return " and ".join(conditions) or None
 
+    def _conditions_from_filters(self, **filters: Any) -> list[str]:
+        """Build OData conditions from filter kwargs.
+
+        Maps filter names to OData condition templates.
+        """
+        mappings = {
+            "project_id": "Project.Id eq {value}",
+            "feature_id": "Feature.Id eq {value}",
+            "assignee_id": "Assignable.Assignee.Id eq {value}",
+            "state": "EntityState.Name eq '{value}'",
+            "severity": "Severity.Name eq '{value}'",
+        }
+        conditions = []
+        for key, value in filters.items():
+            if value is not None and key in mappings:
+                conditions.append(mappings[key].format(value=value))
+        return conditions
+
     async def _request(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
@@ -123,16 +141,12 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get user stories."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if feature_id:
-            conditions.append(f"(Feature.Id eq {feature_id})")
-        if assignee_id:
-            conditions.append(f"(Assignable.Assignee.Id eq {assignee_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            feature_id=feature_id,
+            assignee_id=assignee_id,
+            state=state,
+        )
         return await self.get(
             "UserStories",
             include="Project,EntityState,Assignee,Feature",
@@ -149,16 +163,12 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get bugs."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if assignee_id:
-            conditions.append(f"(Assignee.Id eq {assignee_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-        if severity:
-            conditions.append(f"(Severity.Name eq '{severity}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            assignee_id=assignee_id,
+            state=state,
+            severity=severity,
+        )
         return await self.get(
             "Bugs",
             include="Project,EntityState,Assignee,Priority,Severity",
@@ -173,12 +183,10 @@ class TargetProcessClient:
         take: int = 100,
     ) -> list[dict[str, Any]]:
         """Get features."""
-        conditions = []
-        if project_id:
-            conditions.append(f"(Project.Id eq {project_id})")
-        if state:
-            conditions.append(f"(EntityState.Name eq '{state}')")
-
+        conditions = self._conditions_from_filters(
+            project_id=project_id,
+            state=state,
+        )
         return await self.get(
             "Features",
             include="Project,EntityState",
