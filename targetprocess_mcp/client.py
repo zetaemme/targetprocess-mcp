@@ -209,12 +209,12 @@ async def get_client() -> TargetProcessClient:
     """Factory function to create a new client instance."""
     from . import config as config_module
 
-    if not config_module.TARGETPROCESS_URL or not config_module.TARGETPROCESS_TOKEN:
+    if not config_module.config.targetprocess_url or not config_module.config.targetprocess_token:
         raise RuntimeError(
             "TargetProcess not configured. Run: configure(url='https://yourcompany.tpondemand.com', token='your-api-token')"
         )
 
     return TargetProcessClient(
-        base_url=config_module.API_BASE,
-        token=config_module.TARGETPROCESS_TOKEN,
+        base_url=config_module.config.api_base,
+        token=config_module.config.targetprocess_token,
     )

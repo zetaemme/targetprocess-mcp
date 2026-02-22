@@ -100,15 +100,15 @@ async def configure(
 async def get_status() -> dict:
     """Check if TargetProcess MCP is configured and connected."""
     try:
-        if not config_module.TARGETPROCESS_URL:
+        if not config_module.config.targetprocess_url:
             return {"configured": False, "message": "Not configured. Run configure tool first."}
-        if not config_module.TARGETPROCESS_TOKEN:
+        if not config_module.config.targetprocess_token:
             return {"configured": False, "message": "Token not found. Run configure tool first."}
 
         return {
             "configured": True,
-            "url": config_module.TARGETPROCESS_URL,
-            "vpn_required": config_module.VPN_REQUIRED,
+            "url": config_module.config.targetprocess_url,
+            "vpn_required": config_module.config.vpn_required,
         }
     except Exception as e:
         return {"configured": False, "message": str(e)}
